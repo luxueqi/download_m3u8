@@ -15,9 +15,9 @@ abstract class ProcessFork {
 		}
 	}
 
-	abstract protected function work(...$param);
+	abstract protected function work($i, ...$param);
 
-	protected function run() {
+	protected function run(...$param) {
 		for ($i = 0; $i < $this->threadCount; $i++) {
 
 			$pid = pcntl_fork();
@@ -30,7 +30,8 @@ abstract class ProcessFork {
 
 			} else {
 
-				$this->work($i);
+				$this->work($i, ...$param);
+				//call_user_func([$this, 'work'], $i, ...$param);
 
 				exit(0);
 			}
