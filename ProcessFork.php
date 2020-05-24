@@ -15,7 +15,7 @@ abstract class ProcessFork {
 		}
 	}
 
-	abstract protected function work($i, ...$param);
+	abstract protected function work($start, ...$param);
 
 	protected function run(...$param) {
 		for ($i = 0; $i < $this->threadCount; $i++) {

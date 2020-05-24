@@ -1,7 +1,7 @@
 <?php
 
 /**
- *
+
  */
 class Down {
 	//private static $threadCount;
@@ -25,42 +25,58 @@ class Down {
 	private static $worksarr = [];
 
 	private static function cdir($path) {
-		if (!preg_match('/^(https?:\/\/)([^\/]+)(\/.+)\/(.+\..+)$/', $path, $match)) {
+
+		// if (!preg_match('/^(https?:\/\/)([^\/]+)(\/.+)\/(.+\..+)$/', $path, $match)) {
+		// 	die('链接错误' . PHP_EOL);
+		// }
+		$urlinfo = parse_url($path);
+
+		if (!array_key_exists('scheme', $urlinfo) || !array_key_exists('host', $urlinfo) || !array_key_exists('path', $urlinfo)) {
 			die('链接错误' . PHP_EOL);
 		}
+		self::$host = $urlinfo['scheme'] . '://' . $urlinfo['host'];
 
-		self::$host = $match[1] . $match[2];
+		self::$urldirname = pathinfo($path)['dirname'];
 
-		self::$urldirname = $match[1] . $match[2] . $match[3];
-
-		self::$path = $match[2] . str_replace('/', '-', $match[3]);
-		//var_dump($path);exit;
+		self::$path = $urlinfo['host'] . str_replace('/', '-', $urlinfo['path']);
+		//var_dump(self::$host, self::$urldirname);exit;
 		if (!is_dir(self::$path)) {
 			if (!mkdir(self::$path, 0777)) {
 				throw new Exception("目录创建错误");
 			}
 		}
+		//exit(self::$urldirname);
 		//return true;
 
 	}
+	private static function get($url) {
+		$arrContextOptions = ['ssl' => ['verify_peer' => false, 'verify_peer_name' => false]];
+
+		return @file_get_contents($url, false, stream_context_create($arrContextOptions));
+	}
 
 	private static function init($url, $threadCount) {
+
+		if (strpos(php_sapi_name(), 'cli') === false) {
+			die('请在命令行下运行' . PHP_EOL);
+		}
+
 		self::cdir($url);
 
 		self::$isfork = function_exists('pcntl_fork');
 
 		self::$threadCount = $threadCount;
 
-		$content = file_get_contents($url);
+		$content = self::get($url);
 
 		if (strpos($content, '#EXTM3U') === false) {
-			die('非M3U8的链接');
+			die('get M3U8 列表错误' . PHP_EOL);
 		}
 
 		if (preg_match('/EXT-X-KEY:METHOD=([^,]+),URI="([^,]+)"/', $content, $klist)) {
 			echo "Decode Method:" . $klist[1] . PHP_EOL;
 
-			self::$keys = file_get_contents(self::$urldirname . '/' . $klist[2]);
+			self::$keys = self::get(self::$urldirname . '/' . $klist[2]);
 
 			if (empty(self::$keys)) {
 				die('key获取错误' . PHP_EOL);
@@ -104,8 +120,8 @@ class Down {
 			//die($tspath);
 			echo "正在下载..." . ($i + 1) . PHP_EOL;
 			//exit;
-			$tscontent = @file_get_contents($tsurl);
-
+			//$tscontent = @file_get_contents($tsurl);
+			$tscontent = self::get($tsurl);
 			if (!empty(self::$keys) && $tscontent != '') {
 
 				$tscontent = openssl_decrypt($tscontent, 'AES-128-CBC', self::$keys, OPENSSL_RAW_DATA, self::$keys);
@@ -166,10 +182,11 @@ class Down {
 	}
 
 	private static function createWork() {
-		if (self::$isfork) {
+		if (self::$isfork && self::$threadCount > 1) {
 			self::createFork();
 
 		} else {
+			echo "不支持pcntl_fork或任务数量为1" . PHP_EOL;
 			self::$threadCount = 1;
 			self::work();
 		}
@@ -200,7 +217,7 @@ class Down {
 	}
 
 }
-//url threadCount
-Down::run('', 4);
+
+Down::run('https://us-4.wl-cdn.com/hls/20200413/cf9e775accef1843b078b55b4cc5b966/index.m3u8', 3);
 
 ?>
